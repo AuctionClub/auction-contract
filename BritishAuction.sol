@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "@chainlink/contracts/src/v0.8//AutomationCompatible.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+
 contract BritishAuction is AutomationCompatibleInterface{
     struct AuctionItem {
         address seller; // 卖家地址
@@ -41,7 +43,7 @@ contract BritishAuction is AutomationCompatibleInterface{
         // 创建拍卖，要求卖家质押起拍价的20%
         require(msg.value >= (_startingPrice * 20 / 100), "Deposit must be at least 20% of starting price");
         require(_startTime > block.timestamp, "Start time must be in the future");
-
+        IERC721(nftAddress).approve(address(this), nftTokenId);
         AuctionItem storage newItem = auctions[nextAuctionId];
         nextAuctionId++;
         newItem.seller = msg.sender;
@@ -100,7 +102,6 @@ contract BritishAuction is AutomationCompatibleInterface{
     function endAuction(uint256 _itemId) internal {
         // 结束拍卖
         AuctionItem storage item = auctions[_itemId];
-        require(msg.sender == item.seller, "Only seller can end the auction"); // 确认只有卖家可以结束拍卖
         require(!item.ended, "Auction already ended"); // 确认拍卖未结束
 
         uint256 totalAmount = item.currentHighestBid; // 总成交金额
@@ -126,6 +127,7 @@ contract BritishAuction is AutomationCompatibleInterface{
         }
         platformAddress.transfer(platformFee); // 转移平台手续费
         payable(item.seller).transfer(sellerAmount); // 转移卖家所得金额
+        IERC721(item.nftAddress).transferFrom(item.seller, bidder, tokenId);
 
         item.ended = true;
         emit AuctionEnded(_itemId, item.currentHighestBidder, totalAmount); // 触发拍卖结束事件
