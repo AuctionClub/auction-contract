@@ -172,12 +172,10 @@ contract BritishAuction is AutomationCompatibleInterface{
    function checkUpkeep(bytes calldata checkData) external view override returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = false;
         uint256 auctionId;
-        uint256 intervalTime;
 
         // 遍历拍卖ID列表，检查是否有拍卖需要结束
         for (uint256 i = 0; i < nextAuctionId; i++) {
             AuctionItem storage item = auctions[i];
-            intervalTime = item.interval;
 
             if (block.timestamp > item.endTime && !item.ended) {
                 upkeepNeeded = true;
