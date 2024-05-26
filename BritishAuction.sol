@@ -5,6 +5,7 @@ import "@chainlink/contracts/src/v0.8//AutomationCompatible.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract BritishAuction is AutomationCompatibleInterface{
+
     struct AuctionItem {
         address seller; // 卖家地址
         address nftAddress; // NFT合约地址
@@ -22,6 +23,7 @@ contract BritishAuction is AutomationCompatibleInterface{
 
     }
 
+    mapping(address nftAddress => mapping(uint256 tokenId => bool)) public isOnAuction;
     mapping(uint256 => AuctionItem) public auctions; // 拍卖ID与拍卖物品的映射
     mapping(address => uint256) public pendingReturns; // 竞拍者待领取的金额
     uint256 public nextAuctionId; // 下一个拍卖ID
@@ -39,9 +41,11 @@ contract BritishAuction is AutomationCompatibleInterface{
         platformAddress = _platformAddress; // 设置平台地址
     }
 
+
+    /**
+     * 用户创建拍卖
+     */
     function createAuction(uint256 _startingPrice, uint256 _startTime,  address nftAddress, uint256 nftTokenId, uint256 interval) public payable {
-        // 创建拍卖，要求卖家质押起拍价的20%
-        require(msg.value >= (_startingPrice * 20 / 100), "Deposit must be at least 20% of starting price");
         require(_startTime > block.timestamp, "Start time must be in the future");
         IERC721(nftAddress).approve(address(this), nftTokenId);
         AuctionItem storage newItem = auctions[nextAuctionId];
@@ -53,9 +57,13 @@ contract BritishAuction is AutomationCompatibleInterface{
         newItem.nftAddress = nftAddress;
         newItem.nftTokenId = nftTokenId;
         newItem.interval = interval;
+        isOnAuction[nftAddress][nftTokenId] = true;
         emit AuctionCreated(nextAuctionId, msg.sender, _startingPrice, _startTime); // 触发拍卖创建事件
     }
 
+    /**
+    * 用户对指定NFT进行出价竞拍
+    */
     function bid(uint256 _itemId, uint256 bitAmount) public payable {
         // 进行竞拍
         AuctionItem storage item = auctions[_itemId];
@@ -84,30 +92,30 @@ contract BritishAuction is AutomationCompatibleInterface{
         emit HighestBidIncreased(_itemId, msg.sender, msgSenderHighestBid); // 触发最高出价增加事件
     }
 
-
+    /**
+    * 用户取消拍卖
+    */
     function cancelAuction(uint256 _itemId) public {
-        // 取消拍卖
         AuctionItem storage item = auctions[_itemId];
-        require(msg.sender == item.seller, "Only seller can cancel the auction"); // 确认只有卖家可以取消拍卖
-        require(!item.ended, "Auction already ended"); // 确认拍卖未结束
-
-        // 罚金为起拍价的20%的10%
-        uint256 penaltyAmount = (item.startingPrice * 20 / 100) * 10 / 100;
-        platformAddress.transfer(penaltyAmount); // 将罚金转入平台地址
-
+        require(msg.sender == item.seller, "Only seller can cancel the auction");
+        require(!item.ended, "Auction already ended"); 
         item.ended = true;
-        emit AuctionCancelled(_itemId); // 触发拍卖取消事件
+        isOnAuction[item.nftAddress][item.nftTokenId] = false;
+        emit AuctionCancelled(_itemId); 
     }
 
+    /**
+    * 用户结束拍卖
+    */
     function endAuction(uint256 _itemId) internal {
         // 结束拍卖
         AuctionItem storage item = auctions[_itemId];
         require(!item.ended, "Auction already ended"); // 确认拍卖未结束
 
         uint256 totalAmount = item.currentHighestBid; // 总成交金额
-        uint256 platformFee = totalAmount * 2 / 100; // 平台手续费2%
-        uint256 sellerAmount = totalAmount * 95 / 100; // 卖家所得金额95%
-        uint256 pre_bidderReward = totalAmount * 3 / 100; // 竞拍者奖励金额3%
+        uint256 platformFee = totalAmount * 3 / 1000; // 平台手续费0.3%
+        uint256 sellerAmount = totalAmount * 967 / 1000; // 卖家所得金额96.7%
+        uint256 pre_bidderReward = totalAmount * 30 / 1000; // 竞拍者奖励金额3%
 
         // 从竞拍者列表中移除当前最高出价者（最后的成交者）
         for (uint i = 0; i < item.bidders.length; i++) {
@@ -125,42 +133,41 @@ contract BritishAuction is AutomationCompatibleInterface{
             pendingReturns[bidder] = bidderReward;
             emit RewardDistributed(_itemId, bidder, bidderReward); // 触发奖励分发事件
         }
-        platformAddress.transfer(platformFee); // 转移平台手续费
-        payable(item.seller).transfer(sellerAmount); // 转移卖家所得金额
+        payable(platformAddress).transfer(platformFee); 
+        payable(item.seller).transfer(sellerAmount);
         IERC721(item.nftAddress).transferFrom(item.seller, bidder, tokenId);
-
         item.ended = true;
+        isOnAuction[item.nftAddress][item.nftTokenId] = false;
         emit AuctionEnded(_itemId, item.currentHighestBidder, totalAmount); // 触发拍卖结束事件
     }
 
-    //提取balance的余额
+
+    /**
+    * 用户提取个人中心余额
+    */
     function withdrawBalance() public {
         uint256 balanceAmount = balances[msg.sender];
-
-        require(balanceAmount > 0, "No balance"); // 确认有待领取金额或个人中心余额
-
+        require(balanceAmount > 0, "No balance"); 
         balances[msg.sender] = 0;
-        payable(msg.sender).transfer(balanceAmount); // 转移待领取金额和个人中心余额到竞拍者地址
+        payable(msg.sender).transfer(balanceAmount); 
     }
 
-    //提取拍卖结束的pendingReturns余额
+    /**
+    * 用户提取竞拍者待领取金额
+    */
     function withdrawPendingReturns() public {
         uint256 amount = pendingReturns[msg.sender];
         pendingReturns[msg.sender] = 0;
-
-        payable(msg.sender).transfer(amount); // 转移待领取金额到竞拍者地址
+        payable(msg.sender).transfer(amount); 
     }
 
-
+    /**
+    * 用户向个人中心余额中添加ETH
+    */
     function reserve() public payable {
         require(msg.value > 0, "Must send ETH to add to reserve");
         balances[msg.sender] += msg.value;
         emit ReserveAdded(msg.sender, msg.value); // 触发添加余额事件
-    }
-
-    function getBalance() public view returns (uint256) {
-        // 获取个人中心余额
-        return balances[msg.sender];
     }
 
     receive() external payable {
@@ -169,6 +176,9 @@ contract BritishAuction is AutomationCompatibleInterface{
         emit ReserveAdded(msg.sender, msg.value); // 触发添加余额事件
     }
 
+   /**
+   * chainlink自动化合约接口,检查是否有拍卖需要结束
+   */
    function checkUpkeep(bytes calldata checkData) external view override returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = false;
         uint256 auctionId;
@@ -185,6 +195,9 @@ contract BritishAuction is AutomationCompatibleInterface{
         }
     }
 
+   /**
+   * chainlink自动化合约接口,结束拍卖
+   */
     function performUpkeep(bytes calldata ) external { 
         uint256 auctionId = abi.decode(performData, (uint256));
         endAuction(auctionId);
