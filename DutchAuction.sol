@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@chainlink/contracts/src/v0.8//AutomationCompatible.sol";
+import "lib/chainlink-brownie-contracts/contracts/src/v0.8//AutomationCompatible.sol";
 
 contract DutchAuction is Ownable, AutomationCompatibleInterface{
 
@@ -16,7 +16,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
         uint256 startTime;
         uint256 endTime;
         uint256 price_decay_interval;
-        uint256 price_decay_percentage;
+        uint256 price_decay_amount;
         uint256 reserve_duration;
         bool isActive;
     }
@@ -57,7 +57,10 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
             reservePrice: reservePrice,
             startTime: startTime,
             endTime: startTime + ((startPrice - reservePrice) / price_decay_amount) * price_decay_interval + reserve_duration,
-            isActive: true
+            isActive: true,
+            price_decay_amount: price_decay_amount,
+            price_decay_interval: price_decay_interval,
+            reserve_duration: reserve_duration
         });
         auctionCount++;
         isOnAuction[nftAddress][tokenId] = true;
@@ -119,6 +122,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
     */
     function withdrawDeposit(uint256 auctionId) internal {
         Auction storage auction = auctions[auctionId];
+        auction.isActive = false;
         isOnAuction[auction.nftAddress][auction.tokenId] = false;
     }
 
@@ -130,10 +134,9 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
         uint256 auctionId;
 
         for (uint256 i = 0; i < auctionCount; i++) {
-            AuctionItem storage auction = auctions[i];
+            Auction storage auction = auctions[i];
 
             if (block.timestamp > auction.endTime && auction.isActive) {
-                auction.isActive = false;
                 upkeepNeeded = true;
                 performData = abi.encode(auctionId);
                 break;
@@ -144,7 +147,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
     /**
     * chainlink自动化合约接口,执行结束拍卖
     */
-    function performUpkeep(bytes calldata ) external { 
+    function performUpkeep(bytes calldata performData) external { 
         uint256 auctionId = abi.decode(performData, (uint256));
         withdrawDeposit(auctionId);
     }

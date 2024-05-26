@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@chainlink/contracts/src/v0.8//AutomationCompatible.sol";
+import "lib/chainlink-brownie-contracts/contracts/src/v0.8//AutomationCompatible.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract BritishAuction is AutomationCompatibleInterface{
@@ -18,7 +18,7 @@ contract BritishAuction is AutomationCompatibleInterface{
         mapping(address => uint256) bidAmounts; // 每个竞拍者的出价金额
         address[] bidders; // 竞拍者列表
         uint256 startTime; // 拍卖开始时间
-        uint266 endTime; // 拍卖结束时间    
+        uint256 endTime; // 拍卖结束时间    
         uint256 interval; // 拍卖间隔
 
     }
@@ -89,7 +89,7 @@ contract BritishAuction is AutomationCompatibleInterface{
 
         balances[msg.sender] -= additionalBid; // 更新用户余额，未使用的部分会在竞拍结束时返还
         item.endTime = block.timestamp + item.interval; // 更新拍卖结束时间
-        emit HighestBidIncreased(_itemId, msg.sender, msgSenderHighestBid); // 触发最高出价增加事件
+        emit HighestBidIncreased(_itemId, msg.sender, bitAmount); // 触发最高出价增加事件
     }
 
     /**
@@ -116,10 +116,11 @@ contract BritishAuction is AutomationCompatibleInterface{
         uint256 platformFee = totalAmount * 3 / 1000; // 平台手续费0.3%
         uint256 sellerAmount = totalAmount * 967 / 1000; // 卖家所得金额96.7%
         uint256 pre_bidderReward = totalAmount * 30 / 1000; // 竞拍者奖励金额3%
-
+        address highestBidder;
         // 从竞拍者列表中移除当前最高出价者（最后的成交者）
         for (uint i = 0; i < item.bidders.length; i++) {
             if (item.bidders[i] == item.currentHighestBidder) {
+                highestBidder = item.bidders[i];
                 item.bidders[i] = item.bidders[item.bidders.length - 1];
                 item.bidders.pop();
                 break;
@@ -135,7 +136,7 @@ contract BritishAuction is AutomationCompatibleInterface{
         }
         payable(platformAddress).transfer(platformFee); 
         payable(item.seller).transfer(sellerAmount);
-        IERC721(item.nftAddress).transferFrom(item.seller, bidder, tokenId);
+        IERC721(item.nftAddress).transferFrom(item.seller, highestBidder, item.nftTokenId);
         item.ended = true;
         isOnAuction[item.nftAddress][item.nftTokenId] = false;
         emit AuctionEnded(_itemId, item.currentHighestBidder, totalAmount); // 触发拍卖结束事件
@@ -198,7 +199,7 @@ contract BritishAuction is AutomationCompatibleInterface{
    /**
    * chainlink自动化合约接口,结束拍卖
    */
-    function performUpkeep(bytes calldata ) external { 
+    function performUpkeep(bytes calldata performData) external { 
         uint256 auctionId = abi.decode(performData, (uint256));
         endAuction(auctionId);
     }
