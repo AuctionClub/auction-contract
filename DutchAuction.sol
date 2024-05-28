@@ -129,7 +129,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
     /**
     * chainlink自动化合约接口,检查是否有拍卖需要结束
     */
-    function checkUpkeep(bytes calldata checkData) external view override returns (bool upkeepNeeded, bytes memory performData) {
+    function checkUpkeep(bytes calldata /*checkData*/) external view override returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = false;
         uint256 auctionId;
 
