@@ -21,7 +21,8 @@ contract BritishAuction is AutomationCompatibleInterface{
         uint256 endTime; // 拍卖结束时间    
         uint256 interval; // 拍卖间隔
     }
-
+    
+    mapping(address nftAddress => mapping(uint256 tokenId => uint256)) auctionIdQuery;
     mapping(address nftAddress => mapping(uint256 tokenId => bool)) public isOnAuction;
     mapping(uint256 => AuctionItem) public auctions; // 拍卖ID与拍卖物品的映射
     mapping(address => uint256) public pendingReturns; // 竞拍者待领取的金额
@@ -46,6 +47,7 @@ contract BritishAuction is AutomationCompatibleInterface{
      */
     function createAuction(uint256 _startingPrice, uint256 _startTime,  address nftAddress, uint256 nftTokenId, uint256 interval) public payable {
         require(_startTime >= block.timestamp, "Start time must be in the future");
+        auctionIdQuery[nftAddress][nftTokenId] = nextAuctionId;
         AuctionItem storage newItem = auctions[nextAuctionId];
         nextAuctionId++;
         newItem.seller = msg.sender;

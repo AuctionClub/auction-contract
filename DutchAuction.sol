@@ -21,6 +21,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
         bool isActive;
     }
 
+    mapping(address nftAddress => mapping(uint256 tokenId => uint256)) auctionIdQuery;
     mapping(address nftAddress => mapping(uint256 tokenId => bool)) public isOnAuction;
     mapping(uint256 => Auction) public auctions;
     uint256 public auctionCount;
@@ -46,9 +47,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
         uint256 reserve_duration
     ) external payable {
         require(startPrice > reservePrice, "Start price must be greater than reserve price");
-
-        IERC721(nftAddress).approve(address(this), tokenId);
-
+        require(startTime >= block.timestamp, "Start time must be in the future");
         auctions[auctionCount] = Auction({
             seller: payable(msg.sender),
             nftAddress: nftAddress,
@@ -62,6 +61,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
             price_decay_interval: price_decay_interval,
             reserve_duration: reserve_duration
         });
+        auctionIdQuery[nftAddress][tokenId] = auctionCount;
         auctionCount++;
         isOnAuction[nftAddress][tokenId] = true;
         emit AuctionStarted(auctionCount, msg.sender, tokenId, startPrice, reservePrice, startTime);
