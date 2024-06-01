@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "lib/chainlink-brownie-contracts/contracts/src/v0.8//AutomationCompatible.sol";
+import "../lib/chainlink-brownie-contracts/contracts/src/v0.8//AutomationCompatible.sol";
 
 contract DutchAuction is Ownable, AutomationCompatibleInterface{
 
@@ -21,13 +21,13 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
         bool isActive;
     }
 
-    mapping(address nftAddress => mapping(uint256 tokenId => uint256)) auctionIdQuery;
+    mapping(address nftAddress => mapping(uint256 tokenId => uint256)) public auctionIdQuery;
     mapping(address nftAddress => mapping(uint256 tokenId => bool)) public isOnAuction;
     mapping(uint256 => Auction) public auctions;
     uint256 public auctionCount;
     uint256 public constant FEE_PERCENTAGE = 3;   //手续费设置千分之三
 
-    event AuctionStarted(uint256 indexed auctionId, address indexed seller, uint256 tokenId, uint256 startPrice, uint256 reservePrice, uint256 startTime);
+    event AuctionStarted(uint256 indexed auctionId, address indexed seller, uint256 tokenId, uint256 startPrice, uint256 reservePrice, uint256 startTime, address nftAddress);
     event AuctionEnded(uint256 indexed auctionId, address indexed buyer, uint256 finalPrice);
     event AuctionFailed(uint256 indexed auctionId);
     
@@ -48,6 +48,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
     ) external payable {
         require(startPrice > reservePrice, "Start price must be greater than reserve price");
         require(startTime >= block.timestamp, "Start time must be in the future");
+        auctionCount++;
         auctions[auctionCount] = Auction({
             seller: payable(msg.sender),
             nftAddress: nftAddress,
@@ -60,11 +61,10 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
             price_decay_amount: price_decay_amount,
             price_decay_interval: price_decay_interval,
             reserve_duration: reserve_duration
-        });
+        }); 
         auctionIdQuery[nftAddress][tokenId] = auctionCount;
-        auctionCount++;
         isOnAuction[nftAddress][tokenId] = true;
-        emit AuctionStarted(auctionCount, msg.sender, tokenId, startPrice, reservePrice, startTime);
+        emit AuctionStarted(auctionCount, msg.sender, tokenId, startPrice, reservePrice, startTime, nftAddress);
     }
 
     /**

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "lib/chainlink-brownie-contracts/contracts/src/v0.8//AutomationCompatible.sol";
+import "../lib/chainlink-brownie-contracts/contracts/src/v0.8//AutomationCompatible.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract BritishAuction is AutomationCompatibleInterface{
@@ -22,7 +22,7 @@ contract BritishAuction is AutomationCompatibleInterface{
         uint256 interval; // 拍卖间隔
     }
     
-    mapping(address nftAddress => mapping(uint256 tokenId => uint256)) auctionIdQuery;
+    mapping(address nftAddress => mapping(uint256 tokenId => uint256)) public auctionIdQuery;
     mapping(address nftAddress => mapping(uint256 tokenId => bool)) public isOnAuction;
     mapping(uint256 => AuctionItem) public auctions; // 拍卖ID与拍卖物品的映射
     mapping(address => uint256) public pendingReturns; // 竞拍者待领取的金额
@@ -30,7 +30,7 @@ contract BritishAuction is AutomationCompatibleInterface{
     address payable public platformAddress; // 平台地址
     mapping(address => uint256) public balances; // 竞拍者个人中心余额
 
-    event AuctionCreated(uint256 auctionId, address seller, uint256 startingPrice, uint256 _startTime); // 拍卖创建事件
+    event AuctionCreated(uint256 auctionId, address seller, uint256 startingPrice, uint256 _startTime, address nftAddress, uint256 tokenId); // 拍卖创建事件
     event HighestBidIncreased(uint256 auctionId, address bidder, uint256 amount); // 最高出价增加事件
     event AuctionEnded(uint256 auctionId, address winner, uint256 amount); // 拍卖结束事件
     event AuctionCancelled(uint256 auctionId); // 拍卖取消事件
@@ -47,9 +47,9 @@ contract BritishAuction is AutomationCompatibleInterface{
      */
     function createAuction(uint256 _startingPrice, uint256 _startTime,  address nftAddress, uint256 nftTokenId, uint256 interval) public payable {
         require(_startTime >= block.timestamp, "Start time must be in the future");
+        nextAuctionId++;
         auctionIdQuery[nftAddress][nftTokenId] = nextAuctionId;
         AuctionItem storage newItem = auctions[nextAuctionId];
-        nextAuctionId++;
         newItem.seller = msg.sender;
         newItem.startingPrice = _startingPrice;
         newItem.ended = false;
@@ -58,7 +58,7 @@ contract BritishAuction is AutomationCompatibleInterface{
         newItem.nftTokenId = nftTokenId;
         newItem.interval = interval;
         isOnAuction[nftAddress][nftTokenId] = true;
-        emit AuctionCreated(nextAuctionId, msg.sender, _startingPrice, _startTime); // 触发拍卖创建事件
+        emit AuctionCreated(nextAuctionId, msg.sender, _startingPrice, _startTime, nftAddress, nftTokenId); // 触发拍卖创建事件
     }
 
     /**
