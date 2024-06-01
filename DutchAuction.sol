@@ -27,7 +27,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
     uint256 public auctionCount;
     uint256 public constant FEE_PERCENTAGE = 3;   //手续费设置千分之三
 
-    event AuctionStarted(uint256 indexed auctionId, address indexed seller, uint256 tokenId, uint256 startPrice, uint256 reservePrice, uint256 startTime, address nftAddress);
+    event AuctionStarted(uint256 indexed auctionId, address indexed seller, uint256 tokenId, uint256 startPrice, uint256 reservePrice, uint256 startTime, address nftAddress, uint256 endTime);
     event AuctionEnded(uint256 indexed auctionId, address indexed buyer, uint256 finalPrice);
     event AuctionFailed(uint256 indexed auctionId);
     
@@ -49,6 +49,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
         require(startPrice > reservePrice, "Start price must be greater than reserve price");
         require(startTime >= block.timestamp, "Start time must be in the future");
         auctionCount++;
+        uint256 endTime = startTime + ((startPrice - reservePrice) / price_decay_amount) * price_decay_interval + reserve_duration;
         auctions[auctionCount] = Auction({
             seller: payable(msg.sender),
             nftAddress: nftAddress,
@@ -56,7 +57,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
             startPrice: startPrice,
             reservePrice: reservePrice,
             startTime: startTime,
-            endTime: startTime + ((startPrice - reservePrice) / price_decay_amount) * price_decay_interval + reserve_duration,
+            endTime: endTime,
             isActive: true,
             price_decay_amount: price_decay_amount,
             price_decay_interval: price_decay_interval,
@@ -64,7 +65,7 @@ contract DutchAuction is Ownable, AutomationCompatibleInterface{
         }); 
         auctionIdQuery[nftAddress][tokenId] = auctionCount;
         isOnAuction[nftAddress][tokenId] = true;
-        emit AuctionStarted(auctionCount, msg.sender, tokenId, startPrice, reservePrice, startTime, nftAddress);
+        emit AuctionStarted(auctionCount, msg.sender, tokenId, startPrice, reservePrice, startTime, nftAddress, endTime);
     }
 
     /**
